@@ -605,14 +605,14 @@ def read_bytes(address: str, length: int = 32) -> str:
 @mcp.tool()
 def write_bytes(address: str, bytes_hex: str) -> str:
     """
-    Write a sequence of bytes to the given address in program memory.
+    Writes a sequence of bytes to the specified address in the program's memory.
 
     Args:
-        address: Destination address in hex (e.g. "0x140001000").
-        bytes_hex: Space-separated bytes in hexadecimal (e.g. "90 90 90 90").
+        address: Destination address (e.g., "0x140001000")
+        bytes_hex: Sequence of space-separated bytes in hexadecimal format (e.g., "90 90 90 90")
 
     Returns:
-        Result message (e.g. "Bytes written successfully" or detailed error).
+        Result of the operation (e.g., "Bytes written successfully" or a detailed error)
     """
     return safe_post("write_bytes", {"address": address, "bytes": bytes_hex})
 
