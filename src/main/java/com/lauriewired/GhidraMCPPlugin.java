@@ -2461,7 +2461,11 @@ public class GhidraMCPPlugin extends Plugin {
         int tx = program.startTransaction("Delete structure " + name);
         boolean success = false;
         try {
-            boolean removed = dtm.remove(existing);
+            // Two-arg form keeps us compatible with Ghidra 11.3.2 (where the
+            // single-arg remove(DataType) does not yet exist). In 12.x this
+            // overload is a deprecated default method that just calls
+            // remove(DataType), so behaviour is identical there.
+            boolean removed = dtm.remove(existing, TaskMonitor.DUMMY);
             if (removed) {
                 success = true;
                 return "Deleted structure '" + path + "'";
