@@ -86,8 +86,21 @@ public class GhidraMCPPlugin extends Plugin {
     private static final int READ_BYTES_MAX = 1024 * 1024; // 1 MiB
 
     // Async task management
+    // Cap retained tasks so a long Ghidra session does not accumulate decompiled
+    // bodies forever. When the cap is exceeded the oldest entry (by start time)
+    // is evicted on each new submission.
+    private static final int ASYNC_TASKS_MAX = 256;
     private final ConcurrentHashMap<String, AsyncTask> asyncTasks = new ConcurrentHashMap<>();
-    private final ExecutorService asyncExecutor = Executors.newCachedThreadPool();
+    // Bounded pool sized to host CPUs, plus a named daemon ThreadFactory so the
+    // JVM can exit cleanly even if dispose() never runs (e.g. crash).
+    private final ExecutorService asyncExecutor = Executors.newFixedThreadPool(
+        Math.max(2, Runtime.getRuntime().availableProcessors()),
+        r -> {
+            Thread t = new Thread(r);
+            t.setName("GhidraMCP-Async-" + t.getId());
+            t.setDaemon(true);
+            return t;
+        });
 
     // Health / watchdog
     private static final int WATCHDOG_INTERVAL_MS = 60000;
@@ -134,6 +147,26 @@ public class GhidraMCPPlugin extends Plugin {
                     .replace("\"", "\\\"")
                     .replace("\n", "\\n")
                     .replace("\r", "\\r");
+        }
+    }
+
+    /**
+     * Drop the oldest async task entry when the map is at ASYNC_TASKS_MAX.
+     * Cheap O(n) scan; the cap is small so the cost is negligible.
+     */
+    private void evictOldestTaskIfFull() {
+        if (asyncTasks.size() < ASYNC_TASKS_MAX) return;
+        String oldestId = null;
+        long oldestStart = Long.MAX_VALUE;
+        for (Map.Entry<String, AsyncTask> e : asyncTasks.entrySet()) {
+            long start = e.getValue().startTime;
+            if (start < oldestStart) {
+                oldestStart = start;
+                oldestId = e.getKey();
+            }
+        }
+        if (oldestId != null) {
+            asyncTasks.remove(oldestId);
         }
     }
 
@@ -297,6 +330,7 @@ public class GhidraMCPPlugin extends Plugin {
             }
             String taskId = UUID.randomUUID().toString();
             AsyncTask task = new AsyncTask(taskId);
+            evictOldestTaskIfFull();
             asyncTasks.put(taskId, task);
             asyncExecutor.submit(() -> {
                 task.status = "running";
@@ -2752,6 +2786,16 @@ public class GhidraMCPPlugin extends Plugin {
                 try { watchdogThread.join(2000); } catch (InterruptedException e) {}
             }
         }
+        // Shut down the async-decompile pool before tearing down the HTTP server
+        // so in-flight tasks can finish or be interrupted, and the threads do
+        // not survive a plugin reload.
+        asyncExecutor.shutdownNow();
+        try {
+            asyncExecutor.awaitTermination(2, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        asyncTasks.clear();
         if (server != null) {
             Msg.info(this, "Stopping GhidraMCP HTTP server...");
             server.stop(1);
