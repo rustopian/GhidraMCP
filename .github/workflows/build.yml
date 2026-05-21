@@ -14,8 +14,8 @@ jobs:
         include:
           - ghidra_version: "11.3.2"
             ghidra_date: "20250415"
-          - ghidra_version: "12.0.3"
-            ghidra_date: "20260210"
+          - ghidra_version: "12.0.4"
+            ghidra_date: "20260303"
     env:
       GHIDRA_VERSION: ${{ matrix.ghidra_version }}
       GHIDRA_DATE: ${{ matrix.ghidra_date }}
