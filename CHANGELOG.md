@@ -11,9 +11,10 @@ The "Unreleased" section accumulates changes since the upstream `v1-4` release
 ## [1.5.1] - 2026-05-21
 
 Hardening pass driven by a post-merge security review of every PR landed
-in 1.5.0. Five follow-up fixes, no new features.
+in 1.5.0, plus the build pipeline fixes that surfaced when CI finally
+ran, plus the first test coverage this project has ever had.
 
-### Fixed
+### Fixed (security review)
 - **#9 packaging is now installable**: `pyproject.toml` deps no longer
   claim `requests`; aligned to `httpx>=0.27,<1` + `tenacity>=8.2,<10`
   to match the script's imports. A `pip install` of 1.5.0 would have
@@ -38,6 +39,31 @@ in 1.5.0. Five follow-up fixes, no new features.
   separate best-effort transaction so a flow-following failure no
   longer silently rolls back the patch. Added `WRITE_BYTES_MAX = 1 MiB`
   cap mirroring `READ_BYTES_MAX`.
+
+### Fixed (build pipeline)
+- **`hatch-vcs` tag pattern accepts the `v` prefix**, so the release
+  workflow can derive the version from `v1.5.1` (previously: "tag
+  'v1.5.1' no version found" → wheel build aborted).
+- **Ghidra 11.3.2 compat restored** for `DataTypeManager.remove`: use
+  the deprecated-in-12.x two-arg `remove(DataType, TaskMonitor)` form,
+  since the single-arg `remove(DataType)` only exists in Ghidra 12.x.
+  The CI matrix exposed this immediately.
+- **Build `assemble` step matches any pom version**, not just
+  `*-SNAPSHOT.zip`. With the pom version bumped from `1.0-SNAPSHOT` to
+  `1.5.1`, the Maven assembly produces `GhidraMCP-1.5.1.zip` and the
+  old glob was missing it.
+
+### Added (test infrastructure)
+- **Tier 1 pytest contract tests for the Python bridge**
+  (`tests/test_bridge.py`, 63 tests): every MCP tool the bridge exposes
+  is exercised against a mocked Ghidra HTTP server (`pytest-httpx`).
+  Tests assert the right endpoint, method, encoded params, and response
+  parsing for listings, function accessors, decompile (sync + async),
+  comments, renames, xrefs, structure CRUD, `create_function`, memory
+  R/W, health, and error paths.
+- **`python-tests` CI job** runs alongside the Maven matrix; pure
+  Python, no Ghidra download, finishes in <15 s. The Maven matrix
+  itself continues to build the plugin against Ghidra 11.3.2 and 12.0.4.
 
 ## [1.5.0] - 2026-05-21
 
