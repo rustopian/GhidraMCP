@@ -99,8 +99,9 @@ when a supported package manager is available:
 - WSL2: Linux package managers, with WSLg or another X server for the Ghidra GUI
 
 If you skip package-manager installation, install these yourself first:
-Python 3.10+, `git`, `curl` or `wget`, `unzip`, JDK 21, Maven, and Gradle if you
-want AngryGhidra built automatically.
+Python 3.10+, `git`, `curl` or `wget`, `unzip`, JDK 21, and Maven. For Ghidra
+extension builds, the installer uses the Gradle version required by the
+downloaded Ghidra release rather than relying on an arbitrary system Gradle.
 
 ### Using It
 
@@ -123,6 +124,7 @@ Useful options:
 ./scripts/install.sh --prefix ~/.local/share/triangr
 ./scripts/install.sh --no-angryghidra
 ./scripts/install.sh --no-extension
+./scripts/install.sh --require-angryghidra-build
 ```
 
 ### What It Does
@@ -142,7 +144,8 @@ be re-run safely. It:
 - Installs the extension into the downloaded Ghidra tree.
 - Moves any existing extension folder aside with a `.old.<timestamp>` suffix
   before replacing it.
-- Clones and builds AngryGhidra when requested and Gradle is available.
+- Clones AngryGhidra when requested and builds it with a Ghidra-compatible
+  Gradle, downloading that Gradle when needed.
 - Writes `env.sh` with `GHIDRA_HOME`, `GHIDRA_MCP_ANGR_PYTHON`,
   `ANGRYGHIDRA_HOME`, `ANGRYGHIDRA_SCRIPT`, and related paths.
 - Writes `bin/triangr-mcp`, a wrapper suitable for MCP client configs.
