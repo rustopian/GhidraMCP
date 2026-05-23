@@ -99,9 +99,9 @@ jobs:
 
   installer-smoke:
     # Exercises the real installer path, including Ghidra download, Python
-    # runtime install, angr importability, extension install, and optional
-    # AngryGhidra checkout/build when Gradle is available. Kept separate from
-    # python-tests because it is intentionally heavier and benefits from cache.
+    # runtime install, angr importability, extension install, and AngryGhidra
+    # checkout/build. Kept separate from python-tests because it is intentionally
+    # heavier and benefits from cache.
     runs-on: ubuntu-latest
     env:
       TRIANGR_PREFIX: /tmp/triangr
@@ -151,7 +151,7 @@ jobs:
           PIP_CACHE_DIR="$TRIANGR_CACHE/pip" \
           PIP_FIND_LINKS="$TRIANGR_CACHE/wheels" \
           PIP_PREFER_BINARY=1 \
-            scripts/install.sh --prefix "$TRIANGR_PREFIX" --install-deps --yes
+            scripts/install.sh --prefix "$TRIANGR_PREFIX" --install-deps --yes --require-angryghidra-build
 
           rm -rf "$TRIANGR_CACHE/tools"
           mkdir -p "$TRIANGR_CACHE"
@@ -163,6 +163,7 @@ jobs:
           test -x "$GHIDRA_HOME/ghidraRun"
           test -d "$GHIDRA_HOME/Ghidra/Extensions/GhidraMCP"
           test -x "$TRIANGR_PREFIX/bin/triangr-mcp"
+          test -d "$GHIDRA_HOME/Ghidra/Extensions/AngryGhidra"
           "$GHIDRA_MCP_ANGR_PYTHON" -c "import angr; print(angr.__version__)"
           "$GHIDRA_MCP_ANGR_PYTHON" -m bridge_mcp_ghidra --help >/dev/null
           "$TRIANGR_PREFIX/bin/triangr-mcp" --help >/dev/null
