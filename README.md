@@ -43,7 +43,8 @@ source ~/.local/share/triangr/env.sh
 "$GHIDRA_HOME/ghidraRun"
 ```
 
-Open a program in CodeBrowser, then enable `Triangr` under `File` ->
+Create or open a Ghidra project, import a binary, and open it for analysis.
+When the main analysis window appears, enable `Triangr` under `File` ->
 `Configure` -> `Developer`. The plugin starts a localhost HTTP server at
 `http://127.0.0.1:8080/`; verify it with:
 
@@ -211,7 +212,7 @@ python -c "import angr; print(angr.__version__)"
 In Ghidra:
 
 1. Restart Ghidra if it was already open.
-2. Open a program in CodeBrowser.
+2. Create or open a project, import a binary, and open it for analysis.
 3. Enable the Triangr plugin under `File` -> `Configure` -> `Developer`.
 4. Optional: enable AngryGhidra under `File` -> `Configure` -> `Miscellaneous`.
 5. Check the bridge:
@@ -231,7 +232,7 @@ from this repository. It contains the Ghidra plugin and Python MCP client.
 4. Select the `GhidraMCP-<version>.zip` extension archive. The archive name is
    retained for compatibility during the Triangr rebrand.
 5. Restart Ghidra.
-6. Open a program in CodeBrowser.
+6. Create or open a project, import a binary, and open it for analysis.
 7. Make sure the Triangr plugin is enabled in `File` -> `Configure` ->
    `Developer`.
 8. Optional: configure host and port under `Edit` -> `Tool Options` ->
