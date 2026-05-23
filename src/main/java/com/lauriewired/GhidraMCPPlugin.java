@@ -296,8 +296,6 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, searchFunctionsByName(searchTerm, offset, limit));
         });
 
-        // New API endpoints based on requirements
-        
         server.createContext("/get_function_by_address", exchange -> {
             Map<String, String> qparams = parseQueryParams(exchange);
             String address = qparams.get("address");
@@ -1181,7 +1179,7 @@ public class GhidraMCPPlugin extends Plugin {
 	}
 
     // ----------------------------------------------------------------------------------
-    // New methods to implement the new functionalities
+    // Query and mutation helpers
     // ----------------------------------------------------------------------------------
 
     /**
@@ -1593,10 +1591,8 @@ public class GhidraMCPPlugin extends Plugin {
 
             Msg.info(this, "Setting prototype for function " + func.getName() + ": " + prototype);
 
-            // Store original prototype as a comment for reference
             addPrototypeComment(program, func, prototype);
 
-            // Use ApplyFunctionSignatureCmd to parse and apply the signature
             parseFunctionSignatureAndApply(program, addr, prototype, success, errorMessage);
 
         } catch (Exception e) {
@@ -1606,9 +1602,6 @@ public class GhidraMCPPlugin extends Plugin {
         }
     }
 
-    /**
-     * Add a comment showing the prototype being set
-     */
     private void addPrototypeComment(Program program, Function func, String prototype) {
         int txComment = program.startTransaction("Add prototype comment");
         try {
@@ -1622,26 +1615,18 @@ public class GhidraMCPPlugin extends Plugin {
         }
     }
 
-    /**
-     * Parse and apply the function signature with error handling
-     */
     private void parseFunctionSignatureAndApply(Program program, Address addr, String prototype,
                                               AtomicBoolean success, StringBuilder errorMessage) {
-        // Use ApplyFunctionSignatureCmd to parse and apply the signature
         int txProto = program.startTransaction("Set function prototype");
         try {
-            // Get data type manager
             DataTypeManager dtm = program.getDataTypeManager();
 
-            // Get data type manager service
             ghidra.app.services.DataTypeManagerService dtms = 
                 tool.getService(ghidra.app.services.DataTypeManagerService.class);
 
-            // Create function signature parser
             ghidra.app.util.parser.FunctionSignatureParser parser = 
                 new ghidra.app.util.parser.FunctionSignatureParser(dtm, dtms);
 
-            // Parse the prototype into a function signature
             ghidra.program.model.data.FunctionDefinitionDataType sig = parser.parse(null, prototype);
 
             if (sig == null) {
@@ -1651,12 +1636,10 @@ public class GhidraMCPPlugin extends Plugin {
                 return;
             }
 
-            // Create and apply the command
             ghidra.app.cmd.function.ApplyFunctionSignatureCmd cmd = 
                 new ghidra.app.cmd.function.ApplyFunctionSignatureCmd(
                     addr, sig, SourceType.USER_DEFINED);
 
-            // Apply the command to the program
             boolean cmdResult = cmd.applyTo(program, new ConsoleTaskMonitor());
 
             if (cmdResult) {
@@ -1701,13 +1684,9 @@ public class GhidraMCPPlugin extends Plugin {
         return success.get();
     }
 
-    /**
-     * Helper method that performs the actual variable type change
-     */
     private void applyVariableType(Program program, String functionAddrStr, 
                                   String variableName, String newType, AtomicBoolean success) {
         try {
-            // Find the function
             Address addr = program.getAddressFactory().getAddress(functionAddrStr);
             Function func = getFunctionForAddress(program, addr);
 
@@ -1727,14 +1706,12 @@ public class GhidraMCPPlugin extends Plugin {
                 return;
             }
 
-            // Find the symbol by name
             HighSymbol symbol = findSymbolByName(highFunction, variableName);
             if (symbol == null) {
                 Msg.error(this, "Could not find variable '" + variableName + "' in decompiled function");
                 return;
             }
 
-            // Get high variable
             HighVariable highVar = symbol.getHighVariable();
             if (highVar == null) {
                 Msg.error(this, "No HighVariable found for symbol: " + variableName);
@@ -1744,7 +1721,6 @@ public class GhidraMCPPlugin extends Plugin {
             Msg.info(this, "Found high variable for: " + variableName + 
                      " with current type " + highVar.getDataType().getName());
 
-            // Find the data type
             DataTypeManager dtm = program.getDataTypeManager();
             DataType dataType = resolveDataType(dtm, newType);
 
@@ -1755,7 +1731,6 @@ public class GhidraMCPPlugin extends Plugin {
 
             Msg.info(this, "Using data type: " + dataType.getName() + " for variable " + variableName);
 
-            // Apply the type change in a transaction
             updateVariableType(program, symbol, dataType, success);
 
         } catch (Exception e) {
@@ -1763,9 +1738,6 @@ public class GhidraMCPPlugin extends Plugin {
         }
     }
 
-    /**
-     * Find a high symbol by name in the given high function
-     */
     private HighSymbol findSymbolByName(ghidra.program.model.pcode.HighFunction highFunction, String variableName) {
         Iterator<HighSymbol> symbols = highFunction.getLocalSymbolMap().getSymbols();
         while (symbols.hasNext()) {
@@ -1777,16 +1749,11 @@ public class GhidraMCPPlugin extends Plugin {
         return null;
     }
 
-    /**
-     * Decompile a function and return the results
-     */
     private DecompileResults decompileFunction(Function func, Program program) {
-        // Set up decompiler for accessing the decompiled function
         DecompInterface decomp = new DecompInterface();
         decomp.openProgram(program);
         decomp.setSimplificationStyle("decompile"); // Full decompilation
 
-        // Decompile the function
         DecompileResults results = decomp.decompileFunction(func, 60, new ConsoleTaskMonitor());
 
         if (!results.decompileCompleted()) {
@@ -1797,17 +1764,13 @@ public class GhidraMCPPlugin extends Plugin {
         return results;
     }
 
-    /**
-     * Apply the type update in a transaction
-     */
     private void updateVariableType(Program program, HighSymbol symbol, DataType dataType, AtomicBoolean success) {
         int tx = program.startTransaction("Set variable type");
         try {
-            // Use HighFunctionDBUtil to update the variable with the new type
             HighFunctionDBUtil.updateDBVariable(
-                symbol,                // The high symbol to modify
-                symbol.getName(),      // Keep original name
-                dataType,              // The new data type
+                symbol,
+                symbol.getName(),
+                dataType,
                 SourceType.USER_DEFINED // Mark as user-defined
             );
 

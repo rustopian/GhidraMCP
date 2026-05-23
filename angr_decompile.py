@@ -50,7 +50,7 @@ def patch_elf_pcode_loader(pcode_language: str) -> None:
         try:
             return original_extract_arch(reader)
         except CLECompatibilityError as exc:
-            # Solana BPF ELFs use e_machine 263, while upstream pypcode's eBPF
+            # Some BPF ELFs use e_machine 263, while upstream pypcode's eBPF
             # opinion currently only matches Linux eBPF e_machine 247.
             if "263" in str(exc) and pcode_language.startswith("eBPF:"):
                 return pcode_arch

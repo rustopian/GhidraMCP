@@ -8,9 +8,8 @@ plugin's HTTP server. For each tool we assert:
   * the right query / form parameters are encoded
   * the response body is parsed into the right Python shape
 
-The mocked response bodies use shapes captured from a real Ghidra
-instance running this fork's plugin (a Solana .so), so the assertions
-exercise realistic parsing paths — not just "got a string back".
+The mocked response bodies use shapes captured from a real Ghidra session, so
+the assertions exercise realistic parsing paths rather than only type checks.
 """
 
 import pytest
@@ -206,8 +205,8 @@ class TestDecompile:
 
     def test_decompile_by_addr_sends_timeout_query_param(
             self, bridge_module, httpx_mock):
-        # Verifies the Fix #7 plumbing: the bridge MUST forward the timeout
-        # as a query param, not just as the httpx socket timeout.
+        # The server needs the timeout in the query string; the HTTP client
+        # deadline alone does not control Ghidra's decompiler monitor.
         httpx_mock.add_response(
             url=_url("decompile_function?address=0x120&timeout=200"),
             text="ulonglong entrypoint(...)")
@@ -797,7 +796,7 @@ class TestAngrIntegrations:
 
 
 # ---------------------------------------------------------------------------
-# Async decompile (PR #124)
+# Async decompile
 # ---------------------------------------------------------------------------
 
 class TestAsyncDecompile:
@@ -960,7 +959,7 @@ class TestXrefs:
 
 
 # ---------------------------------------------------------------------------
-# Structure CRUD (this fork's PR #1) + later fixes
+# Structure CRUD
 # ---------------------------------------------------------------------------
 
 class TestStructures:
@@ -1083,7 +1082,7 @@ class TestStructures:
 
 
 # ---------------------------------------------------------------------------
-# create_function (this fork's PR #1)
+# Function creation
 # ---------------------------------------------------------------------------
 
 class TestCreateFunction:
@@ -1106,7 +1105,7 @@ class TestCreateFunction:
 
 
 # ---------------------------------------------------------------------------
-# Memory read/write (PR #57) + health (PR #149)
+# Memory and health
 # ---------------------------------------------------------------------------
 
 class TestMemoryAndHealth:

@@ -971,8 +971,8 @@ def angr_decompile_function(
     Decompile a function with angr/Oxidizer.
 
     If binary_path is omitted, the current Ghidra program's executable path is
-    used. For Ghidra/Solana eBPF programs, the helper falls back to angr's
-    p-code engine using the Ghidra language id when possible.
+    used. For p-code targets, the helper falls back to angr's p-code engine
+    using the Ghidra language id when possible.
 
     Args:
         address: Function entry address in hex (e.g. "0x1400010a0").
