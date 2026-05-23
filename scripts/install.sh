@@ -14,6 +14,7 @@ REPO_DIR=""
 INSTALL_DEPS="ask"
 INSTALL_ANGRYGHIDRA="yes"
 INSTALL_TRIANGR_EXTENSION="yes"
+REQUIRE_ANGRYGHIDRA_BUILD="no"
 DRY_RUN="no"
 YES="no"
 
@@ -42,6 +43,8 @@ Options:
   --no-install-deps        Do not install OS packages
   --no-extension           Skip installing the Triangr Ghidra extension
   --no-angryghidra         Skip cloning/building AngryGhidra
+  --require-angryghidra-build
+                           Fail if AngryGhidra cannot be built and installed
   --dry-run                Print the install plan without making changes
   -y, --yes                Non-interactive yes for prompts
   -h, --help               Show this help
@@ -64,6 +67,7 @@ while [[ $# -gt 0 ]]; do
     --no-install-deps) INSTALL_DEPS="no"; shift ;;
     --no-extension) INSTALL_TRIANGR_EXTENSION="no"; shift ;;
     --no-angryghidra) INSTALL_ANGRYGHIDRA="no"; shift ;;
+    --require-angryghidra-build) REQUIRE_ANGRYGHIDRA_BUILD="yes"; shift ;;
     --dry-run) DRY_RUN="yes"; shift ;;
     -y|--yes) YES="yes"; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -133,16 +137,16 @@ install_os_deps() {
       echo "Homebrew is not installed. Install Homebrew first or re-run with --no-install-deps." >&2
       return 1
     fi
-    brew install python git curl unzip openjdk@21 maven gradle
+    brew install python git curl unzip openjdk@21 maven
   elif need_cmd apt-get; then
     run_sudo apt-get update
-    run_sudo apt-get install -y python3 python3-venv python3-pip git curl unzip openjdk-21-jdk maven gradle build-essential
+    run_sudo apt-get install -y python3 python3-venv python3-pip git curl unzip openjdk-21-jdk maven build-essential
   elif need_cmd dnf; then
-    run_sudo dnf install -y python3 python3-pip git curl unzip java-21-openjdk-devel maven gradle gcc gcc-c++ make
+    run_sudo dnf install -y python3 python3-pip git curl unzip java-21-openjdk-devel maven gcc gcc-c++ make
   elif need_cmd pacman; then
-    run_sudo pacman -Sy --needed python python-pip git curl unzip jdk21-openjdk maven gradle base-devel
+    run_sudo pacman -Sy --needed python python-pip git curl unzip jdk21-openjdk maven base-devel
   else
-    echo "No supported package manager found. Install Python 3.10+, git, curl, unzip, JDK 21, Maven, and Gradle manually." >&2
+    echo "No supported package manager found. Install Python 3.10+, git, curl, unzip, JDK 21, and Maven manually." >&2
   fi
 }
 
@@ -213,6 +217,75 @@ install_ghidra() {
   echo "Downloading Ghidra ${GHIDRA_VERSION}"
   download "$GHIDRA_URL" "$zip_path"
   unzip -q "$zip_path" -d "$tools_dir"
+}
+
+version_at_least() {
+  python3 - "$1" "$2" <<'PY'
+import re
+import sys
+
+def parts(version):
+    values = [int(part) for part in re.findall(r"\d+", version)[:3]]
+    while len(values) < 3:
+        values.append(0)
+    return values
+
+sys.exit(0 if parts(sys.argv[1]) >= parts(sys.argv[2]) else 1)
+PY
+}
+
+ghidra_gradle_min_version() {
+  local ghidra_home="$1"
+  local props="$ghidra_home/Ghidra/application.properties"
+  local version=""
+
+  if [[ -f "$props" ]]; then
+    version="$(awk -F= '$1 == "application.gradle.min" { print $2; exit }' "$props" | tr -d '[:space:]')"
+  fi
+
+  echo "${TRIANGR_GRADLE_VERSION:-${version:-8.5}}"
+}
+
+gradle_command_supports() {
+  local gradle_cmd="$1"
+  local minimum="$2"
+  local current=""
+
+  current="$("$gradle_cmd" --version 2>/dev/null | awk '/^Gradle / { print $2; exit }')" || return 1
+  [[ -n "$current" ]] || return 1
+  version_at_least "$current" "$minimum"
+}
+
+ensure_gradle_for_ghidra() {
+  local ghidra_home="$1"
+  local version
+  local tools_dir="$PREFIX/tools"
+  local gradle_dir
+  local zip_path
+  local system_gradle=""
+
+  version="$(ghidra_gradle_min_version "$ghidra_home")"
+  gradle_dir="$tools_dir/gradle-$version"
+  zip_path="$tools_dir/gradle-$version-bin.zip"
+
+  if [[ -x "$gradle_dir/bin/gradle" ]]; then
+    echo "$gradle_dir/bin/gradle"
+    return 0
+  fi
+
+  if need_cmd gradle; then
+    system_gradle="$(command -v gradle)"
+    if gradle_command_supports "$system_gradle" "$version"; then
+      echo "$system_gradle"
+      return 0
+    fi
+  fi
+
+  mkdir -p "$tools_dir"
+  echo "Downloading Gradle $version for Ghidra extension builds" >&2
+  download "https://services.gradle.org/distributions/gradle-${version}-bin.zip" "$zip_path"
+  unzip -q -o "$zip_path" -d "$tools_dir"
+  echo "$gradle_dir/bin/gradle"
 }
 
 install_python_env() {
@@ -348,6 +421,7 @@ install_angryghidra() {
   [[ "$INSTALL_ANGRYGHIDRA" == "yes" ]] || return 0
   local dest="$PREFIX/AngryGhidra"
   local ghidra_home="$PREFIX/tools/ghidra_${GHIDRA_VERSION}_PUBLIC"
+  local gradle_cmd=""
   local zip_path=""
 
   if [[ -d "$dest/.git" ]]; then
@@ -360,21 +434,24 @@ install_angryghidra() {
     git clone "$ANGRYGHIDRA_REPO" "$dest"
   fi
 
-  if ! need_cmd gradle; then
-    echo "Gradle is not installed, so AngryGhidra was cloned but not built." >&2
+  if ! gradle_cmd="$(ensure_gradle_for_ghidra "$ghidra_home")"; then
+    echo "Could not install a Ghidra-compatible Gradle. AngryGhidra was cloned but not built." >&2
+    [[ "$REQUIRE_ANGRYGHIDRA_BUILD" == "yes" ]] && return 1
     return 0
   fi
 
   echo "Building AngryGhidra extension"
-  if (cd "$dest" && GHIDRA_INSTALL_DIR="$ghidra_home" gradle --quiet); then
+  if (cd "$dest" && GHIDRA_INSTALL_DIR="$ghidra_home" "$gradle_cmd" --quiet); then
     zip_path="$(find "$dest" -type f -name '*AngryGhidra*.zip' | sort | tail -n 1)"
     if [[ -n "$zip_path" ]]; then
       install_extension_zip "$zip_path" "AngryGhidra"
     else
       echo "AngryGhidra built, but no extension ZIP was found under $dest." >&2
+      [[ "$REQUIRE_ANGRYGHIDRA_BUILD" == "yes" ]] && return 1
     fi
   else
     echo "AngryGhidra build failed. The source checkout remains at $dest." >&2
+    [[ "$REQUIRE_ANGRYGHIDRA_BUILD" == "yes" ]] && return 1
   fi
 }
 
@@ -430,6 +507,7 @@ Triangr installer dry run
   install deps: $INSTALL_DEPS
   install Triangr extension: $INSTALL_TRIANGR_EXTENSION
   install AngryGhidra: $INSTALL_ANGRYGHIDRA
+  require AngryGhidra build: $REQUIRE_ANGRYGHIDRA_BUILD
 EOF
     exit 0
   fi
