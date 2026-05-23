@@ -1,6 +1,6 @@
-# Triangr
-
-**angr/Oxidizer decompilation + Ghidra project context + AI analysis**
+# Triangr MCP
+## Complete AI Binary Analysis and Reverse Engineering Plugin
+## angr/Oxidizer decompilation + Ghidra project context + MCP
 
 Triangr turns a binary into an agent-ready reverse engineering workbench.
 
